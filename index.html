@@ -1,0 +1,817 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>카레 요리사 🍛</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Jua&display=swap');
+
+  :root {
+    --curry: #D4880A;
+    --curry-dark: #9B6007;
+    --curry-light: #F5C842;
+    --bg: #1A0F00;
+    --red: #FF4444;
+    --green: #44FF88;
+    --white: #FFF8EE;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  html, body {
+    width: 100%; height: 100%;
+    background: var(--bg);
+    font-family: 'Jua', sans-serif;
+    overflow: hidden;
+    touch-action: none;
+    user-select: none;
+  }
+
+  #gameWrapper {
+    position: relative;
+    width: 100vw;
+    height: 100vh;
+    max-height: 100dvh;
+  }
+
+  canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+
+  /* ── HUD ── */
+  #hud {
+    position: absolute;
+    top: env(safe-area-inset-top, 10px);
+    left: 10px; right: 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    pointer-events: none;
+    padding-top: 4px;
+  }
+
+  .hud-box {
+    background: rgba(0,0,0,0.6);
+    border: 1.5px solid rgba(212,136,10,0.45);
+    border-radius: 10px;
+    padding: 5px 12px;
+    font-size: clamp(11px, 3vw, 14px);
+    color: var(--curry-light);
+    line-height: 1.3;
+  }
+  .hud-val {
+    font-size: clamp(18px, 5vw, 24px);
+    font-weight: 900;
+    color: var(--white);
+    display: block;
+  }
+
+  /* ── Stir speed bar (right side) ── */
+  #stirBar {
+    position: absolute;
+    right: 12px;
+    top: 80px;
+    width: clamp(22px, 5vw, 30px);
+    height: clamp(130px, 28vh, 200px);
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    pointer-events: none;
+  }
+  #stirOuter {
+    width: 100%; flex: 1;
+    background: rgba(0,0,0,0.55);
+    border: 2px solid var(--curry-dark);
+    border-radius: 8px;
+    overflow: hidden;
+    display: flex; flex-direction: column-reverse;
+  }
+  #stirFill { width: 100%; transition: height 0.1s; }
+  #stirLabel { font-size: 10px; color: var(--curry-light); writing-mode: vertical-rl; letter-spacing: 1px; }
+
+  /* ── Rhythm bar ── */
+  #rhythmWrap {
+    position: absolute;
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 100px);
+    left: 50%; transform: translateX(-50%);
+    width: min(90vw, 400px);
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    pointer-events: none;
+  }
+  #rhythmLabel { font-size: clamp(12px, 3.5vw, 15px); color: var(--curry-light); letter-spacing: 1px; text-align: center; }
+  #rhythmTrack {
+    width: 100%; height: 42px;
+    background: rgba(0,0,0,0.65);
+    border: 2px solid var(--curry-dark);
+    border-radius: 22px;
+    position: relative; overflow: hidden;
+  }
+  #rhythmZone {
+    position: absolute; top: 0; bottom: 0;
+    background: rgba(68,255,136,0.28);
+    border-left: 2px solid var(--green);
+    border-right: 2px solid var(--green);
+  }
+  #rhythmCursor {
+    position: absolute; top: 4px; bottom: 4px; width: 7px;
+    background: var(--white); border-radius: 4px;
+    box-shadow: 0 0 12px white;
+  }
+
+  /* ── TAP BUTTON (replaces space bar) ── */
+  #tapBtn {
+    position: absolute;
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 12px);
+    left: 50%; transform: translateX(-50%);
+    width: min(80vw, 320px);
+    height: 62px;
+    background: linear-gradient(135deg, #D4880A, #F5C842);
+    border: none; border-radius: 32px;
+    font-family: 'Jua', sans-serif;
+    font-size: clamp(20px, 5vw, 26px);
+    color: #000;
+    font-weight: 900;
+    cursor: pointer;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 24px rgba(212,136,10,0.6);
+    pointer-events: all;
+    letter-spacing: 2px;
+    animation: tapPulse 0.8s infinite;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+  @keyframes tapPulse {
+    0%,100% { box-shadow: 0 4px 24px rgba(212,136,10,0.6); transform: translateX(-50%) scale(1); }
+    50% { box-shadow: 0 4px 40px rgba(212,136,10,1); transform: translateX(-50%) scale(1.04); }
+  }
+  #tapBtn:active { transform: translateX(-50%) scale(0.95) !important; animation: none; box-shadow: 0 2px 10px rgba(212,136,10,0.4); }
+
+  /* ── Feedback ── */
+  #feedback {
+    position: absolute;
+    top: 38%; left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: clamp(24px, 7vw, 36px);
+    font-weight: 900;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.2s;
+    text-shadow: 0 2px 12px black;
+    white-space: nowrap;
+  }
+
+  /* ── Screens (splash / score) ── */
+  .overlay {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: clamp(10px, 3vh, 18px);
+    border-radius: 0;
+    pointer-events: all;
+    padding: 20px;
+    padding-top: max(20px, env(safe-area-inset-top, 20px));
+    padding-bottom: max(20px, env(safe-area-inset-bottom, 20px));
+  }
+
+  #splashScreen { background: rgba(10,5,0,0.97); }
+  #scoreScreen  { background: rgba(10,5,0,0.95); display: none; }
+
+  .overlay h1 {
+    font-size: clamp(32px, 10vw, 52px);
+    color: var(--curry-light);
+    text-shadow: 0 0 40px var(--curry);
+    text-align: center;
+  }
+
+  .rule-box {
+    background: rgba(212,136,10,0.1);
+    border: 1px solid rgba(212,136,10,0.35);
+    border-radius: 12px;
+    padding: clamp(10px, 3vw, 16px) clamp(14px, 4vw, 22px);
+    font-size: clamp(13px, 3.8vw, 16px);
+    line-height: 1.85;
+    width: 100%; max-width: 380px;
+    color: var(--white);
+  }
+
+  .big-btn {
+    padding: clamp(12px,3vh,16px) clamp(30px,10vw,50px);
+    font-family: 'Jua', sans-serif;
+    font-size: clamp(18px, 5vw, 22px);
+    background: var(--curry);
+    color: #000;
+    border: none; border-radius: 32px;
+    cursor: pointer;
+    box-shadow: 0 4px 20px rgba(212,136,10,0.55);
+    animation: pulse 1.5s infinite;
+    touch-action: manipulation;
+  }
+  @keyframes pulse {
+    0%,100% { box-shadow: 0 4px 20px rgba(212,136,10,0.5); }
+    50%      { box-shadow: 0 4px 42px rgba(212,136,10,1); }
+  }
+  .big-btn:active { transform: scale(0.96); animation: none; }
+
+  /* score rows */
+  .score-row {
+    display: flex; justify-content: space-between;
+    width: min(90vw, 320px);
+    font-size: clamp(15px, 4.5vw, 18px);
+    padding: 7px 0;
+    border-bottom: 1px solid rgba(212,136,10,0.2);
+    color: var(--white);
+  }
+  .score-row span:last-child { color: var(--curry-light); font-weight: 900; }
+  #totalScore { font-size: clamp(26px, 8vw, 44px); color: var(--curry-light); text-shadow: 0 0 20px orange; }
+  #grade { font-size: clamp(28px, 9vw, 52px); text-align: center; }
+</style>
+</head>
+<body>
+<div id="gameWrapper">
+  <canvas id="gameCanvas"></canvas>
+
+  <!-- HUD -->
+  <div id="hud">
+    <div class="hud-box">⏱<br><span class="hud-val" id="timerVal">--</span></div>
+    <div class="hud-box" style="text-align:center">단계<br><span class="hud-val" id="phaseName">-</span></div>
+    <div class="hud-box" style="text-align:right">점수<br><span class="hud-val" id="scoreVal">0</span></div>
+  </div>
+
+  <!-- Stir speed bar -->
+  <div id="stirBar">
+    <div id="stirOuter"><div id="stirFill" style="height:0%"></div></div>
+    <div id="stirLabel">속도</div>
+  </div>
+
+  <!-- Rhythm bar -->
+  <div id="rhythmWrap">
+    <div id="rhythmLabel">🔥 초록 구간에서 탭!</div>
+    <div id="rhythmTrack">
+      <div id="rhythmZone"></div>
+      <div id="rhythmCursor"></div>
+    </div>
+  </div>
+
+  <!-- TAP button (fire phase) -->
+  <button id="tapBtn">🔥 TAP!</button>
+
+  <!-- Feedback -->
+  <div id="feedback"></div>
+
+  <!-- Score screen -->
+  <div class="overlay" id="scoreScreen">
+    <h1>🍛 완성!</h1>
+    <div id="grade"></div>
+    <div class="score-row"><span>🥄 젓기</span><span id="sc1">0</span></div>
+    <div class="score-row"><span>🔥 불조절</span><span id="sc2">0</span></div>
+    <div class="score-row"><span>🌟 보너스</span><span id="sc3">0</span></div>
+    <div id="totalScore">총점: 0</div>
+    <button class="big-btn" id="restartBtn">다시 하기 🍛</button>
+  </div>
+
+  <!-- Splash screen -->
+  <div class="overlay" id="splashScreen">
+    <h1>🍛 카레 요리사</h1>
+    <div class="rule-box">
+      🥄 <b>젓기 단계</b> — 손가락으로 냄비 안을<br>&nbsp;&nbsp;&nbsp;&nbsp;빙글빙글 돌려서 저어줘!<br>
+      &nbsp;&nbsp;&nbsp;너무 빠르면 튀고 💦 너무 느리면 타! 🔥<br><br>
+      🔥 <b>불조절 단계</b> — 커서가 초록 구간에<br>&nbsp;&nbsp;&nbsp;&nbsp;들어왔을 때 버튼을 탭해봐!
+    </div>
+    <button class="big-btn" id="startBtn">요리 시작! 🥄</button>
+  </div>
+</div>
+
+<script>
+// ── Canvas setup ──────────────────────────────────
+const canvas  = document.getElementById('gameCanvas');
+const ctx     = canvas.getContext('2d');
+const wrapper = document.getElementById('gameWrapper');
+
+let CW, CH, POT_CX, POT_CY, POT_RX, POT_RY, SCALE;
+
+function resize() {
+  CW = wrapper.clientWidth;
+  CH = wrapper.clientHeight;
+  canvas.width  = CW;
+  canvas.height = CH;
+  // Scale relative to 700×600 reference
+  SCALE   = Math.min(CW / 700, CH / 600);
+  POT_CX  = CW / 2;
+  POT_CY  = CH * 0.52;
+  POT_RX  = 190 * SCALE;
+  POT_RY  = 148 * SCALE;
+}
+resize();
+window.addEventListener('resize', () => { resize(); });
+
+// ── UI refs ───────────────────────────────────────
+const timerValEl  = document.getElementById('timerVal');
+const phaseNameEl = document.getElementById('phaseName');
+const stirBarEl   = document.getElementById('stirBar');
+const stirFillEl  = document.getElementById('stirFill');
+const rhythmWrap  = document.getElementById('rhythmWrap');
+const rhythmZoneEl= document.getElementById('rhythmZone');
+const rhythmCursorEl=document.getElementById('rhythmCursor');
+const tapBtn      = document.getElementById('tapBtn');
+const scoreScreen = document.getElementById('scoreScreen');
+const splashScreen= document.getElementById('splashScreen');
+const feedbackEl  = document.getElementById('feedback');
+
+// ── Game state ────────────────────────────────────
+let phase = 'splash';
+let stirScore = 0, fireScore = 0;
+const stirTime = 28;
+let stirTimeLeft = stirTime;
+const fireBeats = 10;
+
+let mouseX = 0, mouseY = 0;
+let angularVelocity = 0;
+let stirGoodTime = 0, stirBadTime = 0;
+let burnLevel = 0;
+let prevStirAngle = null;
+let bubbles = [], ripples = [], currySplats = [], splashParticles = [];
+
+// Fire
+let cursor = 0, cursorDir = 1, cursorSpeed = 0.012;
+let zoneStart = 0.38, zoneWidth = 0.18;
+let beatResult = [];
+let beatIndex = 0;
+let firePhaseTime = 0;
+let firePhaseBeats = [];
+let hitCooldown = 0;
+
+let lastTime = 0;
+
+// ── Drawing ───────────────────────────────────────
+function drawBackground() {
+  let g = ctx.createLinearGradient(0,0,0,CH);
+  g.addColorStop(0,'#1A0A00'); g.addColorStop(1,'#0D0600');
+  ctx.fillStyle = g; ctx.fillRect(0,0,CW,CH);
+
+  let cg = ctx.createLinearGradient(0, CH*0.78, 0, CH);
+  cg.addColorStop(0,'#2A1800'); cg.addColorStop(1,'#1A0E00');
+  ctx.fillStyle = cg; ctx.fillRect(0, CH*0.78, CW, CH*0.22);
+  ctx.fillStyle = '#3D2200'; ctx.fillRect(0, CH*0.78-3, CW, 5);
+
+  // tile lines
+  ctx.strokeStyle = 'rgba(60,30,0,0.35)'; ctx.lineWidth = 1;
+  for (let r=0;r<4;r++) for (let c=0;c<12;c++) {
+    ctx.strokeRect(c*(CW/10), r*(CH*0.16)+8, CW/10, CH*0.16);
+  }
+}
+
+function drawFlame(intensity) {
+  if (intensity <= 0) return;
+  const baseY = POT_CY + POT_RY + 22*SCALE;
+  const cnt   = 3 + Math.floor(intensity*4);
+  for (let i=0;i<cnt;i++) {
+    const ox = (i - cnt/2) * 26*SCALE;
+    const h  = (28 + intensity*44 + Math.sin(Date.now()/120+i)*7)*SCALE;
+    const g  = ctx.createRadialGradient(POT_CX+ox,baseY,0, POT_CX+ox,baseY-h/2,h);
+    g.addColorStop(0,'rgba(255,240,80,0.9)');
+    g.addColorStop(0.4,'rgba(255,120,0,0.7)');
+    g.addColorStop(1,'rgba(255,30,0,0)');
+    ctx.beginPath();
+    ctx.ellipse(POT_CX+ox,baseY,13*SCALE,h,0,0,Math.PI*2);
+    ctx.fillStyle=g; ctx.fill();
+  }
+  const glow=ctx.createRadialGradient(POT_CX,baseY-8*SCALE,0,POT_CX,baseY-8*SCALE,110*SCALE);
+  glow.addColorStop(0,`rgba(255,100,0,${0.13*intensity})`);
+  glow.addColorStop(1,'rgba(255,100,0,0)');
+  ctx.fillStyle=glow;
+  ctx.fillRect(POT_CX-120*SCALE,baseY-55*SCALE,240*SCALE,70*SCALE);
+}
+
+function drawPot() {
+  ctx.save();
+  ctx.shadowColor='rgba(0,0,0,0.55)'; ctx.shadowBlur=28*SCALE; ctx.shadowOffsetY=18*SCALE;
+  const pg=ctx.createLinearGradient(POT_CX-POT_RX,0,POT_CX+POT_RX,0);
+  pg.addColorStop(0,'#222'); pg.addColorStop(0.3,'#555');
+  pg.addColorStop(0.6,'#888'); pg.addColorStop(1,'#222');
+  ctx.fillStyle=pg;
+  ctx.beginPath(); ctx.ellipse(POT_CX,POT_CY,POT_RX+9*SCALE,POT_RY+18*SCALE,0,0,Math.PI*2); ctx.fill();
+  ctx.restore();
+
+  // inside curry
+  ctx.save();
+  ctx.beginPath();
+  ctx.ellipse(POT_CX,POT_CY-8*SCALE,POT_RX-12*SCALE,POT_RY-16*SCALE,0,0,Math.PI*2);
+  ctx.clip();
+
+  const r2=Math.round(180-burnLevel*80), g2=Math.round(100-burnLevel*80);
+  ctx.fillStyle=`rgb(${r2},${g2},10)`;
+  ctx.fillRect(POT_CX-POT_RX,POT_CY-POT_RY-18*SCALE,POT_RX*2,POT_RY*2+18*SCALE);
+
+  ctx.globalAlpha=0.18;
+  for(let i=0;i<4;i++){
+    const swX=POT_CX+Math.cos(Date.now()/1500+i*1.5)*55*SCALE;
+    const swY=POT_CY-8*SCALE+Math.sin(Date.now()/1500+i*1.5)*28*SCALE;
+    const sg=ctx.createRadialGradient(swX,swY,0,swX,swY,65*SCALE);
+    sg.addColorStop(0,'#F5A800'); sg.addColorStop(1,'rgba(245,168,0,0)');
+    ctx.fillStyle=sg; ctx.beginPath(); ctx.arc(swX,swY,65*SCALE,0,Math.PI*2); ctx.fill();
+  }
+  ctx.globalAlpha=1;
+
+  for(let s of currySplats){
+    ctx.globalAlpha=s.a; ctx.fillStyle='#C87000';
+    ctx.beginPath(); ctx.arc(s.x,s.y,s.r,0,Math.PI*2); ctx.fill(); ctx.globalAlpha=1;
+  }
+  for(let b of bubbles){
+    ctx.globalAlpha=b.a; ctx.beginPath(); ctx.arc(b.x,b.y,b.r,0,Math.PI*2);
+    ctx.strokeStyle=`rgba(255,200,80,${b.a})`; ctx.lineWidth=1.5; ctx.stroke(); ctx.globalAlpha=1;
+  }
+  for(let rp of ripples){
+    ctx.globalAlpha=rp.a; ctx.beginPath();
+    ctx.ellipse(rp.x,rp.y,rp.rx,rp.ry,0,0,Math.PI*2);
+    ctx.strokeStyle=`rgba(255,200,80,${rp.a*0.8})`; ctx.lineWidth=1.5; ctx.stroke(); ctx.globalAlpha=1;
+  }
+  if(burnLevel>0){
+    ctx.fillStyle=`rgba(10,0,0,${burnLevel*0.62})`;
+    ctx.fillRect(POT_CX-POT_RX,POT_CY-POT_RY-18*SCALE,POT_RX*2,POT_RY*2+18*SCALE);
+    if(burnLevel>0.3){
+      for(let i=0;i<3;i++){
+        const sx=POT_CX+(i-1)*45*SCALE, sy=POT_CY-POT_RY-16*SCALE;
+        const sG=ctx.createRadialGradient(sx,sy-18*SCALE,0,sx,sy-18*SCALE,36*SCALE);
+        sG.addColorStop(0,`rgba(80,80,80,${burnLevel*0.5})`);
+        sG.addColorStop(1,'rgba(80,80,80,0)');
+        ctx.fillStyle=sG; ctx.beginPath();
+        ctx.arc(sx,sy-18*SCALE+Math.sin(Date.now()/600+i)*7*SCALE,36*SCALE,0,Math.PI*2); ctx.fill();
+      }
+    }
+  }
+  ctx.restore();
+
+  // rim
+  const rim=ctx.createLinearGradient(0,POT_CY-POT_RY-8*SCALE,0,POT_CY-POT_RY+10*SCALE);
+  rim.addColorStop(0,'#AAA'); rim.addColorStop(0.5,'#EEE'); rim.addColorStop(1,'#555');
+  ctx.beginPath();
+  ctx.ellipse(POT_CX,POT_CY-POT_RY+2*SCALE,POT_RX+3*SCALE,20*SCALE,0,0,Math.PI*2);
+  ctx.fillStyle=rim; ctx.fill();
+
+  // handles
+  for(let side of[-1,1]){
+    ctx.beginPath();
+    ctx.ellipse(POT_CX+side*(POT_RX+9*SCALE),POT_CY,20*SCALE,14*SCALE,0,0,Math.PI*2);
+    const hg=ctx.createLinearGradient(0,POT_CY-14*SCALE,0,POT_CY+14*SCALE);
+    hg.addColorStop(0,'#888'); hg.addColorStop(1,'#333');
+    ctx.fillStyle=hg; ctx.fill();
+  }
+}
+
+function drawSplash() {
+  for(let p of splashParticles){
+    ctx.globalAlpha=p.a;
+    ctx.fillStyle=`hsl(${p.hue},80%,50%)`;
+    ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,Math.PI*2); ctx.fill();
+    ctx.globalAlpha=1;
+  }
+}
+
+function drawSpoon() {
+  if(phase!=='stir') return;
+  const dx=mouseX-POT_CX, dy=mouseY-(POT_CY-8*SCALE);
+  const angle=Math.atan2(dy,dx);
+  const dist=Math.min(Math.hypot(dx,dy),POT_RX-28*SCALE);
+  const sx=POT_CX+Math.cos(angle)*dist;
+  const sy=(POT_CY-8*SCALE)+Math.sin(angle)*dist;
+
+  ctx.save();
+  ctx.translate(sx,sy-38*SCALE);
+  ctx.rotate(angle+Math.PI/2);
+  const sg=ctx.createLinearGradient(-3*SCALE,0,3*SCALE,0);
+  sg.addColorStop(0,'#DDD'); sg.addColorStop(0.5,'#FFF'); sg.addColorStop(1,'#999');
+  ctx.fillStyle=sg;
+  ctx.beginPath(); ctx.roundRect(-3*SCALE,0,6*SCALE,56*SCALE,3*SCALE); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(0,62*SCALE,8*SCALE,13*SCALE,0,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='rgba(200,120,0,0.7)';
+  ctx.beginPath(); ctx.ellipse(0,62*SCALE,5*SCALE,9*SCALE,0,0,Math.PI*2); ctx.fill();
+  ctx.restore();
+}
+
+function drawStirHUD() {
+  if(phase!=='stir') return;
+  const speed=Math.abs(angularVelocity);
+  let hint='천천히 저어줘 🥄', hintColor='rgba(255,200,80,0.9)';
+  if(speed>5.5){hint='너무 세! 튄다! 💦';hintColor='#FF6644';}
+  else if(speed>1.2){hint='딱 좋아! 👌';hintColor='#88FF88';}
+
+  ctx.font=`bold ${Math.round(16*SCALE)}px Jua,sans-serif`;
+  ctx.fillStyle=hintColor; ctx.textAlign='center';
+  ctx.fillText(hint,POT_CX,POT_CY+POT_RY+50*SCALE);
+
+  // burn bar (left side, scaled)
+  const bx=12, by=CH*0.14, bw=18*SCALE, bh=CH*0.3;
+  ctx.fillStyle='rgba(0,0,0,0.5)';
+  ctx.beginPath(); ctx.roundRect(bx,by,bw,bh,5); ctx.fill();
+  if(burnLevel>0){
+    const burnH=burnLevel*bh;
+    const bg2=ctx.createLinearGradient(0,by+bh,0,by);
+    bg2.addColorStop(0,'#FF2200'); bg2.addColorStop(0.5,'#FF8800'); bg2.addColorStop(1,'#FFD700');
+    ctx.fillStyle=bg2;
+    ctx.beginPath(); ctx.roundRect(bx,by+bh-burnH,bw,burnH,5); ctx.fill();
+  }
+  ctx.font=`${Math.round(12*SCALE)}px Jua,sans-serif`;
+  ctx.fillStyle='#FFB060'; ctx.textAlign='center';
+  ctx.fillText('🔥',bx+bw/2,by-4);
+  ctx.fillText('탐',bx+bw/2,by+bh+14);
+}
+
+// ── Particles ──────────────────────────────────────
+function spawnSplash(){
+  const angle=Math.random()*Math.PI*2;
+  const sp=140+Math.random()*220;
+  splashParticles.push({
+    x:POT_CX+Math.cos(angle)*(POT_RX-28*SCALE),
+    y:(POT_CY-8*SCALE)+Math.sin(angle)*(POT_RY-22*SCALE)*0.6,
+    vx:Math.cos(angle)*sp, vy:Math.sin(angle)*sp-70,
+    r:(3+Math.random()*5)*SCALE, hue:25+Math.random()*20, a:1
+  });
+  currySplats.push({
+    x:POT_CX+(Math.random()-0.5)*(POT_RX*1.4),
+    y:(POT_CY-8*SCALE)+(Math.random()-0.5)*POT_RY,
+    r:(4+Math.random()*7)*SCALE, a:0.7
+  });
+}
+function spawnBubble(){
+  bubbles.push({
+    x:POT_CX+(Math.random()-0.5)*(POT_RX-28*SCALE)*1.5,
+    y:POT_CY+(Math.random()-0.5)*(POT_RY-18*SCALE)*0.6,
+    r:(2+Math.random()*5)*SCALE, speed:(18+Math.random()*36)*SCALE, a:0.7+Math.random()*0.3
+  });
+}
+function spawnRipple(){
+  ripples.push({
+    x:POT_CX+(Math.random()-0.5)*75*SCALE,
+    y:POT_CY-8*SCALE+(Math.random()-0.5)*36*SCALE,
+    rx:4*SCALE, ry:3*SCALE, a:0.8
+  });
+}
+
+// ── Stir logic ────────────────────────────────────
+function updateStir(dt){
+  const dx=mouseX-POT_CX, dy=mouseY-(POT_CY-8*SCALE);
+  const dist=Math.hypot(dx,dy);
+  if(dist<28*SCALE){prevStirAngle=null; return;}
+
+  const angle=Math.atan2(dy,dx);
+  if(prevStirAngle!==null){
+    let dA=angle-prevStirAngle;
+    while(dA>Math.PI)dA-=Math.PI*2;
+    while(dA<-Math.PI)dA+=Math.PI*2;
+    angularVelocity=dA/dt;
+  }
+  prevStirAngle=angle;
+
+  const speed=Math.abs(angularVelocity);
+  const goodMin=1.2, goodMax=5.5;
+  if(speed>goodMax){
+    stirBadTime+=dt; burnLevel=Math.max(0,burnLevel-dt*0.02);
+    if(Math.random()<0.4) spawnSplash();
+  } else if(speed>goodMin){
+    stirGoodTime+=dt; burnLevel=Math.max(0,burnLevel-dt*0.1);
+    if(Math.random()<0.15) spawnRipple();
+    if(Math.random()<0.04) spawnBubble();
+  } else {
+    burnLevel=Math.min(1,burnLevel+dt*0.06);
+    stirBadTime+=dt*0.5;
+  }
+  if(Math.random()<0.03) spawnBubble();
+
+  for(let b of bubbles){b.y-=b.speed*dt; b.a-=dt*0.8;}
+  bubbles=bubbles.filter(b=>b.a>0);
+  for(let r of ripples){r.rx+=dt*38*SCALE;r.ry+=dt*23*SCALE;r.a-=dt*1.5;}
+  ripples=ripples.filter(r=>r.a>0);
+  for(let s of currySplats) s.a-=dt*0.3;
+  currySplats=currySplats.filter(s=>s.a>0);
+  for(let p of splashParticles){
+    p.x+=p.vx*dt; p.y+=p.vy*dt; p.vy+=400*dt; p.a-=dt*1.5;
+  }
+  splashParticles=splashParticles.filter(p=>p.a>0);
+
+  const speedNorm=Math.min(speed/(goodMax*1.3),1);
+  stirFillEl.style.height=(speedNorm*100)+'%';
+  stirFillEl.style.background=speed>goodMax
+    ?'linear-gradient(to top,#FF4444,#FF8844)'
+    :speed>goodMin
+    ?'linear-gradient(to top,#44FF88,#AAFF44)'
+    :'linear-gradient(to top,#FF8800,#FFCC00)';
+
+  stirTimeLeft-=dt;
+  timerValEl.textContent=Math.max(0,Math.ceil(stirTimeLeft))+'s';
+  if(stirTimeLeft<=0) endStirPhase();
+}
+
+function endStirPhase(){
+  const ratio=stirGoodTime/stirTime;
+  stirScore=Math.round(ratio*100*(1-burnLevel*0.5));
+  stirScore=Math.max(0,Math.min(100,stirScore));
+  showFeedback(stirScore>=70?'완벽한 젓기! 🥄':stirScore>=40?'그럭저럭...':'타버렸어! 🔥',
+               stirScore>=70?'#44FF88':stirScore>=40?'#FFD700':'#FF4444');
+  setTimeout(()=>startFirePhase(),1800);
+}
+
+// ── Fire logic ────────────────────────────────────
+function startFirePhase(){
+  phase='fire';
+  phaseNameEl.textContent='🔥 불조절';
+  firePhaseTime=0; beatIndex=0; beatResult=[];
+  cursor=0.1; cursorDir=1; hitCooldown=0;
+
+  stirBarEl.style.display='none';
+  rhythmWrap.style.display='flex';
+  tapBtn.style.display='flex';
+
+  firePhaseBeats=[];
+  for(let i=0;i<fireBeats;i++){
+    firePhaseBeats.push({
+      time:1.2+i*1.8,
+      zoneStart:0.25+Math.random()*0.35,
+      zoneWidth:0.12+Math.random()*0.12,
+      speed:0.009+Math.random()*0.008
+    });
+  }
+  timerValEl.textContent=`1/${fireBeats}`;
+}
+
+function updateFire(dt){
+  firePhaseTime+=dt;
+  if(beatIndex<firePhaseBeats.length){
+    const beat=firePhaseBeats[beatIndex];
+    cursorSpeed=beat.speed; zoneStart=beat.zoneStart; zoneWidth=beat.zoneWidth;
+    cursor+=cursorDir*cursorSpeed*dt*60;
+    if(cursor>=1){cursor=1;cursorDir=-1;}
+    if(cursor<=0){cursor=0;cursorDir=1;}
+    rhythmZoneEl.style.left=(zoneStart*100)+'%';
+    rhythmZoneEl.style.width=(zoneWidth*100)+'%';
+    rhythmCursorEl.style.left=`calc(${cursor*100}% - 3.5px)`;
+    timerValEl.textContent=`${beatIndex+1}/${fireBeats}`;
+    if(firePhaseTime>beat.time+2.0){
+      beatResult.push('miss'); showBeatFeedback('MISS 💨','#FF4444');
+      beatIndex++; hitCooldown=0;
+    }
+  } else {
+    endFirePhase();
+  }
+  if(hitCooldown>0) hitCooldown-=dt;
+}
+
+function onTap(){
+  if(phase!=='fire'||hitCooldown>0) return;
+  if(beatIndex>=firePhaseBeats.length) return;
+  const beat=firePhaseBeats[beatIndex];
+  if(firePhaseTime<beat.time-0.4) return;
+  const inZone=cursor>=zoneStart&&cursor<=zoneStart+zoneWidth;
+  const centerDist=Math.abs(cursor-(zoneStart+zoneWidth/2))/(zoneWidth/2);
+  if(inZone){
+    if(centerDist<0.3){beatResult.push('perfect');showBeatFeedback('PERFECT! 🔥','#FFD700');}
+    else{beatResult.push('good');showBeatFeedback('GOOD! ✓','#44FF88');}
+  } else {
+    beatResult.push('miss');showBeatFeedback('MISS 💨','#FF4444');
+  }
+  beatIndex++; hitCooldown=0.3;
+}
+
+function endFirePhase(){
+  rhythmWrap.style.display='none';
+  tapBtn.style.display='none';
+  let pts=0;
+  for(let r of beatResult){if(r==='perfect')pts+=10;else if(r==='good')pts+=6;}
+  fireScore=Math.round((pts/(fireBeats*10))*100);
+  setTimeout(()=>showResult(),800);
+}
+
+// ── Result ────────────────────────────────────────
+function showResult(){
+  phase='result';
+  const bonus=stirScore>80&&fireScore>80?20:0;
+  const total=stirScore+fireScore+bonus;
+  let grade='😭 탄 카레';
+  if(total>=180)grade='👑 마스터 셰프!';
+  else if(total>=150)grade='⭐ 훌륭해!';
+  else if(total>=110)grade='😊 먹을 만해~';
+  else if(total>=70)grade='🤔 더 연습하자';
+  document.getElementById('sc1').textContent=stirScore+'점';
+  document.getElementById('sc2').textContent=fireScore+'점';
+  document.getElementById('sc3').textContent=bonus+'점';
+  document.getElementById('totalScore').textContent='총점: '+total+' / 220';
+  document.getElementById('grade').textContent=grade;
+  scoreScreen.style.display='flex';
+}
+
+// ── Feedback ──────────────────────────────────────
+function showFeedback(text,color){
+  feedbackEl.textContent=text; feedbackEl.style.color=color; feedbackEl.style.opacity='1';
+  setTimeout(()=>{feedbackEl.style.opacity='0';},1500);
+}
+let bfTimer=null;
+function showBeatFeedback(text,color){
+  feedbackEl.textContent=text; feedbackEl.style.color=color; feedbackEl.style.opacity='1';
+  if(bfTimer)clearTimeout(bfTimer);
+  bfTimer=setTimeout(()=>{feedbackEl.style.opacity='0';},700);
+}
+
+// ── Game loop ─────────────────────────────────────
+let flameIntensity=0.5;
+
+function gameLoop(ts){
+  const dt=Math.min((ts-lastTime)/1000,0.05);
+  lastTime=ts;
+  ctx.clearRect(0,0,CW,CH);
+  drawBackground();
+  if(phase==='stir') flameIntensity=0.4+burnLevel*0.5;
+  else if(phase==='fire') flameIntensity=0.3+cursor*0.7;
+  drawFlame(flameIntensity);
+  drawPot();
+  drawSplash();
+  drawSpoon();
+  drawStirHUD();
+  if(phase==='stir') updateStir(dt);
+  if(phase==='fire') updateFire(dt);
+  requestAnimationFrame(gameLoop);
+}
+
+// ── Touch / pointer input ─────────────────────────
+function getPos(e){
+  const rect=canvas.getBoundingClientRect();
+  const scaleX=CW/rect.width, scaleY=CH/rect.height;
+  if(e.touches&&e.touches.length>0){
+    return {x:(e.touches[0].clientX-rect.left)*scaleX, y:(e.touches[0].clientY-rect.top)*scaleY};
+  }
+  return {x:(e.clientX-rect.left)*scaleX, y:(e.clientY-rect.top)*scaleY};
+}
+
+canvas.addEventListener('touchstart', e=>{
+  if(phase==='stir'){
+    const p=getPos(e);
+    const dx=p.x-POT_CX,dy=p.y-(POT_CY-8*SCALE);
+    if(Math.hypot(dx,dy)<POT_RX+20*SCALE){ mouseX=p.x;mouseY=p.y;prevStirAngle=null; }
+  }
+},{passive:true});
+
+canvas.addEventListener('touchmove', e=>{
+  e.preventDefault();
+  if(phase==='stir'){
+    const p=getPos(e); mouseX=p.x; mouseY=p.y;
+  }
+},{passive:false});
+
+canvas.addEventListener('touchend',()=>{ if(phase==='stir') prevStirAngle=null; },{passive:true});
+canvas.addEventListener('mousemove',e=>{
+  const p=getPos(e); mouseX=p.x; mouseY=p.y;
+});
+
+// Tap button
+tapBtn.addEventListener('touchstart',e=>{e.preventDefault();onTap();},{passive:false});
+tapBtn.addEventListener('click',onTap);
+
+// Keyboard fallback
+document.addEventListener('keydown',e=>{
+  if(e.code==='Space'){e.preventDefault();onTap();}
+});
+
+// ── Start ─────────────────────────────────────────
+function startGame(){
+  splashScreen.style.display='none';
+  scoreScreen.style.display='none';
+  phase='stir';
+  phaseNameEl.textContent='🥄 젓기';
+  stirTimeLeft=stirTime; stirGoodTime=0; stirBadTime=0;
+  burnLevel=0; bubbles=[]; ripples=[]; currySplats=[]; splashParticles=[];
+  prevStirAngle=null; angularVelocity=0; stirScore=0; fireScore=0;
+  stirBarEl.style.display='flex';
+  rhythmWrap.style.display='none';
+  tapBtn.style.display='none';
+  showFeedback('빙글빙글 저어줘! 🥄','#F5C842');
+}
+
+document.getElementById('startBtn').addEventListener('click',()=>{
+  lastTime=performance.now();
+  requestAnimationFrame(ts=>{lastTime=ts;gameLoop(ts);});
+  startGame();
+});
+document.getElementById('restartBtn').addEventListener('click',()=>{
+  scoreScreen.style.display='none'; startGame();
+});
+
+// Splash idle loop
+function splashLoop(ts){
+  if(phase!=='splash') return;
+  ctx.clearRect(0,0,CW,CH); drawBackground(); drawFlame(0.6); drawPot();
+  if(Math.random()<0.05) spawnBubble();
+  for(let b of bubbles){b.y-=b.speed*0.016;b.a-=0.016*0.8;}
+  bubbles=bubbles.filter(b=>b.a>0);
+  lastTime=ts; requestAnimationFrame(splashLoop);
+}
+requestAnimationFrame(splashLoop);
+</script>
+</body>
+</html>
